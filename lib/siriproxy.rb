@@ -1,33 +1,35 @@
-require 'eventmachine'
-require 'zlib'
+require 'cora'
+require 'siri_objects'
 require 'pp'
 
-class String
-  def to_hex(seperator=" ")
-    bytes.to_a.map{|i| i.to_s(16).rjust(2, '0')}.join(seperator)
-  end
-end
+#######
+# This is a "hello world" style plugin. It simply intercepts the phrase "test siri proxy" and responds
+# with a message about the proxy being up and running (along with a couple other core features). This 
+# is good base code for other plugins.
+# 
+# Remember to add other plugins to the "config.yml" file if you create them!
+######
 
-class SiriProxy
-  
-  def initialize()
-    # @todo shouldnt need this, make centralize logging instead
-    $LOG_LEVEL = $APP_CONFIG.log_level.to_i
-    EventMachine.run do
-      begin
-        puts "Starting SiriProxy on port #{$APP_CONFIG.port}.."
-        EventMachine::start_server('0.0.0.0', $APP_CONFIG.port, SiriProxy::Connection::Iphone) { |conn|
-          $stderr.puts "start conn #{conn.inspect}"
-          conn.plugin_manager = SiriProxy::PluginManager.new()
-          conn.plugin_manager.iphone_conn = conn
-        }
-      rescue RuntimeError => err
-        if err.message == "no acceptor"
-          raise "Cannot start the server on port #{$APP_CONFIG.port} - are you root, or have another process on this port already?"
-        else
-          raise
-        end
-      end
-    end
+class SiriProxy::Plugin::raniop < SiriProxy::Plugin
+  def initialize(config)
+    #if you have custom configuration options, process them here!
   end
-end
+
+  #get the user's location and display it in the logs
+  #filters are still in their early stages. Their interface may be modified
+  filter "SetRequestOrigin", direction: :from_iphone do |object|
+    puts "[Info - User Location] lat: #{object["properties"]["latitude"]}, long: #{object["properties"]["longitude"]}"
+    
+    #Note about returns from filters:
+    # - Return false to stop the object from being forwarded
+    # - Return a Hash to substitute or update the object
+    # - Return nil (or anything not a Hash or false) to have the object forwarded (along with any 
+    #    modifications made to it)
+  end 
+
+  listen_for /Hwo is Eli Ophir?/i do
+    say "Eli Ophir was born on April, 11 1952!" #say something to the user!
+    
+    request_completed #always complete your request! Otherwise the phone will "spin" at the user!
+  end
+  
